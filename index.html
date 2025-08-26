@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McDonald's Deal Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Style for edit mode */
+        .price-display { cursor: pointer; }
+        .price-input, .price-input-group { display: none; }
+        body.edit-mode .price-display { display: none; }
+        body.edit-mode .price-input, body.edit-mode .price-input-group { display: flex; /* Use flex for better alignment */ }
+        body.edit-mode .size-selector { display: none; }
+        body.edit-mode .add-item-btn { display: none; }
+
+        /* Accordion styles */
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-red-600">McDeal Finder</h1>
+            <p class="text-gray-600 mt-2">Find the cheapest way to order your favorite McDonald's items!</p>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Left Column: Menu & Deals -->
+            <div class="space-y-8">
+                <!-- Menu Section -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 class="text-2xl font-semibold">1. Select Your Items</h2>
+                        <button id="edit-prices-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">Edit Prices</button>
+                    </div>
+                    <div id="menu-items" class="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
+                        <!-- Menu items will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- Deals Section -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold mb-4 border-b pb-2">2. Select Available Deals</h2>
+                    <div id="deals" class="space-y-3">
+                        <!-- Deals will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Cart & Results -->
+            <div class="space-y-8">
+                <div class="bg-white p-6 rounded-lg shadow-md sticky top-8">
+                    <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Your Order</h2>
+                    <!-- Live Order Summary -->
+                    <div id="order-summary" class="my-4 space-y-3">
+                        <p class="text-gray-500 text-center italic">Your cart is empty.</p>
+                    </div>
+                    <button id="calculate-btn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105">
+                        Find Best Deal
+                    </button>
+                    <div id="results" class="mt-6 space-y-4">
+                        <!-- Calculation results will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const SALES_TAX_RATE = 0.06;
+
+        // --- DATA ---
+        // Default prices, will be overridden by localStorage if available.
+        let menu = [
+            // Breakfast
+            { id: 'eggmcmuffin', name: 'Egg McMuffin', price: 4.79, category: 'Breakfast' },
+            { id: 'sausage_mcmuffin', name: 'Sausage McMuffin®', price: 2.39, category: 'Breakfast' },
+            { id: 'sausage_egg_mcmuffin', name: 'Sausage McMuffin w/ Egg', price: 5.19, category: 'Breakfast' },
+            { id: 'sausage_biscuit', name: 'Sausage Biscuit', price: 2.29, category: 'Breakfast' },
+            { id: 'bacon_egg_biscuit', name: 'Bacon, Egg & Cheese Biscuit', price: 5.29, category: 'Breakfast' },
+            { id: 'sausage_burrito', name: 'Sausage Burrito', price: 2.19, category: 'Breakfast' },
+            { id: 'hashbrown', name: 'Hash Browns', price: 2.09, category: 'Breakfast' },
+            // Burgers & Sandwiches
+            { id: 'bigmac', name: 'Big Mac', price: 6.19, category: 'Burgers & Sandwiches' },
+            { id: 'qpc', name: 'Quarter Pounder w/ Cheese', price: 5.39, category: 'Burgers & Sandwiches' },
+            { id: 'qpc_deluxe', name: 'Quarter Pounder w/ Cheese Deluxe', price: 7.19, category: 'Burgers & Sandwiches' },
+            { id: 'qpc_bacon', name: 'Bacon Quarter Pounder w/ Cheese', price: 7.39, category: 'Burgers & Sandwiches' },
+            { id: 'qpc_double', name: 'Double Quarter Pounder w/ Cheese', price: 7.89, category: 'Burgers & Sandwiches' },
+            { id: 'qpc_double_bacon', name: 'Double Bacon QPC', price: 9.29, category: 'Burgers & Sandwiches' },
+            { id: 'daily_double', name: 'Daily Double', price: 4.29, category: 'Burgers & Sandwiches' },
+            { id: 'mcdouble', name: 'McDouble', price: 3.19, category: 'Burgers & Sandwiches' },
+            { id: 'bacon_mcdouble', name: 'Bacon McDouble', price: 4.49, category: 'Burgers & Sandwiches' },
+            { id: 'hamburger', name: 'Hamburger', price: 2.39, category: 'Burgers & Sandwiches' },
+            { id: 'cheeseburger', name: 'Cheeseburger', sizes: { 'Single': 2.49, 'Double': 3.59, 'Triple': 4.89 }, category: 'Burgers & Sandwiches' },
+            { id: 'mccrispy', name: 'McCrispy®', sizes: { 'Regular': 4.99, 'Deluxe': 6.29, 'Spicy': 4.99, 'Spicy Deluxe': 6.49 }, category: 'Burgers & Sandwiches' },
+            { id: 'mcchicken', name: 'McChicken®', sizes: { 'Regular': 2.89, 'Hot \'n Spicy': 2.99 }, category: 'Burgers & Sandwiches' },
+            { id: 'filet_o_fish', name: 'Filet-O-Fish', sizes: { 'Single': 5.29, 'Double': 6.49 }, category: 'Burgers & Sandwiches' },
+            // Chicken & Nuggets
+            { id: 'snack_wrap', name: 'Snack Wrap®', sizes: { 'Ranch': 2.99, 'Spicy': 2.99 }, category: 'Chicken & Nuggets' },
+            { id: 'mccrispy_strips', name: 'McCrispy™ Strips', sizes: { '3pc': 5.29, '4pc': 6.29 }, category: 'Chicken & Nuggets' },
+            { id: 'nuggets', name: 'Chicken McNuggets', sizes: { '4pc': 3.19, '6pc': 4.69, '10pc': 6.49, '20pc': 9.39, '40pc': 17.19 }, category: 'Chicken & Nuggets' },
+            // Fries & Sides
+            { id: 'fries', name: 'Fries', sizes: { 'S': 2.99, 'M': 3.99, 'L': 4.79 }, category: 'Fries & Sides' },
+            // Happy Meals
+            { id: 'hm_hamburger', name: 'Hamburger Happy Meal', price: 4.59, category: 'Happy Meals' },
+            { id: 'hm_nuggets', name: '4pc Nugget Happy Meal', price: 4.99, category: 'Happy Meals' },
+            // Drinks & McCafe
+            { id: 'fountain_drink', name: 'Fountain Drink', price: 1.49, category: 'Drinks & McCafé' },
+            { id: 'sweet_tea', name: 'Sweet Tea', price: 1.49, category: 'Drinks & McCafé' },
+            { id: 'lemonade', name: 'Lemonade', sizes: { 'S': 1.99, 'M': 2.39, 'L': 2.69 }, category: 'Drinks & McCafé' },
+            { id: 'tea_lemonade', name: 'Tea Lemonade', sizes: { 'Sweet S': 1.99, 'Sweet M': 2.39, 'Sweet L': 2.69, 'Unsweet S': 1.99, 'Unsweet M': 2.39, 'Unsweet L': 2.69 }, category: 'Drinks & McCafé' },
+            { id: 'oj', name: 'Minute Maid Orange Juice', sizes: { 'S': 2.89, 'M': 3.39, 'L': 3.99 }, category: 'Drinks & McCafé' },
+            { id: 'bottled_water', name: 'Bottled Water', price: 2.19, category: 'Drinks & McCafé' },
+            { id: 'milk', name: 'Milk', price: 1.19, category: 'Drinks & McCafé' },
+            { id: 'chocolate_milk', name: 'Chocolate Milk', price: 1.19, category: 'Drinks & McCafé' },
+            { id: 'apple_juice', name: 'Honest Kids Apple Juice', price: 1.19, category: 'Drinks & McCafé' },
+            { id: 'frozen_drink', name: 'Frozen Drink', sizes: { 'Coke S': 2.39, 'Coke M': 2.59, 'Coke L': 2.79, 'Blue Raspberry S': 2.39, 'Blue Raspberry M': 2.59, 'Blue Raspberry L': 2.79, 'Wild Cherry S': 2.39, 'Wild Cherry M': 2.59, 'Wild Cherry L': 2.79 }, category: 'Drinks & McCafé' },
+            { id: 'hot_tea', name: 'Hot Tea', sizes: { 'S': 1.19, 'M': 1.59, 'L': 1.99 }, category: 'Drinks & McCafé' },
+            { id: 'hot_coffee', name: 'Premium Roast Coffee', sizes: { 'S': 1.59, 'M': 1.89, 'L': 2.19 }, category: 'Drinks & McCafé' },
+            { id: 'decaf_coffee', name: 'Decaf Coffee', sizes: { 'S': 1.59, 'M': 1.89, 'L': 2.19 }, category: 'Drinks & McCafé' },
+            { id: 'iced_coffee', name: 'Iced Coffee', sizes: { 'S': 2.29, 'M': 2.59, 'L': 2.79 }, category: 'Drinks & McCafé' },
+            { id: 'iced_coffee_flavored', name: 'Flavored Iced Coffee', sizes: { 'Caramel S': 2.29, 'Caramel M': 2.59, 'Caramel L': 2.79, 'French Vanilla S': 2.29, 'French Vanilla M': 2.59, 'French Vanilla L': 2.79, 'SF Vanilla S': 2.29, 'SF Vanilla M': 2.59, 'SF Vanilla L': 2.79 }, category: 'Drinks & McCafé' },
+            { id: 'espresso_drinks', name: 'Espresso Drinks', sizes: { 'Caramel Macchiato S': 2.69, 'Caramel Macchiato M': 3.59, 'Caramel Macchiato L': 4.49, 'Iced Caramel Macchiato S': 2.69, 'Iced Caramel Macchiato M': 3.59, 'Iced Caramel Macchiato L': 4.49, 'Mocha S': 2.69, 'Mocha M': 3.59, 'Mocha L': 4.49, 'Iced Mocha S': 2.69, 'Iced Mocha M': 3.59, 'Iced Mocha L': 4.49, 'Latte S': 2.69, 'Latte M': 3.59, 'Latte L': 4.49, 'Iced Latte S': 2.69, 'Iced Latte M': 3.59, 'Iced Latte L': 4.49, 'Caramel Latte S': 2.69, 'Caramel Latte M': 3.59, 'Caramel Latte L': 4.49, 'Iced Caramel Latte S': 2.69, 'Iced Caramel Latte M': 3.59, 'Iced Caramel Latte L': 4.49, 'French Vanilla Latte S': 2.69, 'French Vanilla Latte M': 3.59, 'French Vanilla Latte L': 4.49, 'Iced French Vanilla Latte S': 2.69, 'Iced French Vanilla Latte M': 3.59, 'Iced French Vanilla Latte L': 4.49, 'SF Vanilla Latte S': 2.69, 'SF Vanilla Latte M': 3.59, 'SF Vanilla Latte L': 4.49, 'Iced SF Vanilla Latte S': 2.69, 'Iced SF Vanilla Latte M': 3.59, 'Iced SF Vanilla Latte L': 4.49, 'Cappuccino S': 2.69, 'Cappuccino M': 3.59, 'Cappuccino L': 4.49, 'Caramel Cappuccino S': 2.69, 'Caramel Cappuccino M': 3.59, 'Caramel Cappuccino L': 4.49, 'Vanilla Cappuccino S': 2.69, 'Vanilla Cappuccino M': 3.59, 'Vanilla Cappuccino L': 4.49, 'SF Vanilla Cappuccino S': 2.69, 'SF Vanilla Cappuccino M': 3.59, 'SF Vanilla Cappuccino L': 4.49, 'Americano S': 2.69, 'Americano M': 3.59, 'Americano L': 4.49 }, category: 'Drinks & McCafé' },
+            { id: 'frappe', name: 'Frappé', sizes: { 'Caramel S': 4.59, 'Caramel M': 4.99, 'Caramel L': 5.49, 'Mocha S': 4.59, 'Mocha M': 4.99, 'Mocha L': 5.49 }, category: 'Drinks & McCafé' },
+            { id: 'smoothie', name: 'Smoothie', sizes: { 'Strawberry Banana S': 3.99, 'Strawberry Banana M': 4.49, 'Strawberry Banana L': 5.19, 'Mango Pineapple S': 3.99, 'Mango Pineapple M': 4.49, 'Mango Pineapple L': 5.19 }, category: 'Drinks & McCafé' },
+            { id: 'hot_chocolate', name: 'Hot Chocolate', sizes: { 'S': 2.39, 'M': 2.89, 'L': 3.39 }, category: 'Drinks & McCafé' },
+            // Sweets & Treats
+            { id: 'shake', name: 'Shake', sizes: { 'S': 3.29, 'M': 3.89, 'L': 4.39 }, category: 'Sweets & Treats' },
+            { id: 'mcflurry', name: 'McFlurry', price: 3.89, category: 'Sweets & Treats' },
+            { id: 'sundae', name: 'Sundae', price: 2.39, category: 'Sweets & Treats' },
+            { id: 'applepie', name: 'Apple Pie', price: 1.69, category: 'Sweets & Treats' },
+            { id: 'cookie', name: 'Chocolate Chip Cookie', sizes: { '1pc': 1.19, '3pc': 2.59 }, category: 'Sweets & Treats' },
+        ];
+
+        // Selectable deals from the app
+        const selectableDeals = [
+            { id: 'forty_percent_off_dc_or_nuggets', description: '40% off Double Cheeseburger or 6pc Nuggets', apply: (cart) => {
+                const doubleCheeseburgers = cart.filter(item => item.id === 'cheeseburger' && item.size === 'Double');
+                const sixPieceNuggets = cart.filter(item => item.id === 'nuggets' && item.size === '6pc');
+                const eligibleItems = [...doubleCheeseburgers, ...sixPieceNuggets];
+                if (eligibleItems.length === 0) return 0;
+                const mostExpensiveItem = eligibleItems.reduce((max, item) => item.price > max.price ? item : max, eligibleItems[0]);
+                return mostExpensiveItem.price * 0.40;
+            }},
+            { id: 'ninety_nine_cent_coffee', description: '$0.99 Any Size Premium Roast or Iced Coffee', apply: (cart) => {
+                const coffees = cart.filter(item => item.id === 'hot_coffee' || item.id === 'iced_coffee' || item.id === 'iced_coffee_flavored' || item.id === 'decaf_coffee');
+                if (coffees.length === 0) return 0;
+                const mostExpensiveCoffee = coffees.reduce((max, item) => item.price > max.price ? item : max, coffees[0]);
+                const savings = mostExpensiveCoffee.price - 0.99;
+                return savings > 0 ? savings : 0;
+            }},
+            { id: 'free_breakfast_sandwich_15', description: 'Free Breakfast Sandwich with minimum purchase of $15', apply: (cart) => {
+                const total = cart.reduce((sum, item) => sum + item.price, 0);
+                if (total < 15) return 0;
+                const breakfastSandwiches = cart.filter(item => getMenuItem(item.id).category === 'Breakfast' && item.id !== 'hashbrown' && item.id !== 'sausage_burrito');
+                if (breakfastSandwiches.length === 0) return 0;
+                const mostExpensiveSandwich = breakfastSandwiches.reduce((max, item) => item.price > max.price ? item : max, breakfastSandwiches[0]);
+                return mostExpensiveSandwich.price;
+            }},
+            { id: 'five_off_20', description: '$5 off any purchase of $20 or more', apply: (cart) => {
+                const total = cart.reduce((sum, item) => sum + item.price, 0);
+                return total >= 20 ? 5 : 0;
+            }},
+            { id: 'bogo_breakfast_sandwich_1', description: 'Buy one Breakfast Sandwich, add one for $1', apply: (cart) => {
+                const breakfastSandwiches = cart.filter(item => getMenuItem(item.id).category === 'Breakfast' && item.id !== 'hashbrown' && item.id !== 'sausage_burrito');
+                if (breakfastSandwiches.length < 2) return 0;
+                breakfastSandwiches.sort((a, b) => b.price - a.price);
+                const itemToDiscount = breakfastSandwiches[1];
+                const savings = itemToDiscount.price - 1.00;
+                return savings > 0 ? savings : 0;
+            }},
+            { id: 'one_thirty_nine_fries', description: '$1.39 Any Size Fries', apply: (cart) => {
+                const fries = cart.filter(item => item.id === 'fries');
+                if (fries.length === 0) return 0;
+                const mostExpensiveFries = fries.reduce((max, item) => item.price > max.price ? item : max, fries[0]);
+                const savings = mostExpensiveFries.price - 1.39;
+                return savings > 0 ? savings : 0;
+            }},
+            { id: 'eight_dollar_combo', description: '$8 Filet-O-Fish or McCrispy Combo Meal', apply: (cart) => {
+                const hasSandwich = cart.some(item => (item.id === 'filet_o_fish' && item.size === 'Single') || (item.id === 'mccrispy' && item.size === 'Regular'));
+                const hasMediumFries = cart.some(item => item.id === 'fries' && item.size === 'M');
+                const hasMediumDrink = cart.some(item => item.id === 'fountain_drink'); // Assuming fountain drink is the combo drink
+                if (!hasSandwich || !hasMediumFries || !hasMediumDrink) return 0;
+                const sandwichPrice = getMenuItem(cart.find(i => i.id === 'filet_o_fish' || i.id === 'mccrispy').id).sizes.Single || getMenuItem('mccrispy').sizes.Regular;
+                const comboPrice = sandwichPrice + getMenuItem('fries').sizes.M + getMenuItem('fountain_drink').price;
+                const savings = comboPrice - 8.00;
+                return savings > 0 ? savings : 0;
+            }},
+            { id: 'twenty_percent_off_12', description: '20% off any purchase of $12 or more', apply: (cart, priceAfterAutoDeals) => {
+                if (priceAfterAutoDeals < 12) return 0;
+                return priceAfterAutoDeals * 0.20;
+            }},
+            { id: 'free_big_mac_2', description: 'Free Big Mac with minimum purchase of $2', apply: (cart) => {
+                const hasBigMac = cart.some(item => item.id === 'bigmac');
+                if (!hasBigMac) return 0;
+                const totalWithoutBigMac = cart.filter(item => item.id !== 'bigmac').reduce((sum, item) => sum + item.price, 0);
+                if (totalWithoutBigMac >= 2) {
+                    return getMenuItem('bigmac').price;
+                }
+                return 0;
+            }},
+            { id: 'free_nuggets_2', description: 'Free 6pc McNuggets with minimum purchase of $2', apply: (cart) => {
+                const hasNuggets = cart.some(item => item.id === 'nuggets' && item.size === '6pc');
+                if (!hasNuggets) return 0;
+                const totalWithoutNuggets = cart.filter(item => !(item.id === 'nuggets' && item.size === '6pc')).reduce((sum, item) => sum + item.price, 0);
+                if (totalWithoutNuggets >= 2) {
+                    return getMenuItem('nuggets').sizes['6pc'];
+                }
+                return 0;
+            }},
+        ];
+        
+        // Always-on bundle deals that are not selected
+        const automaticDeals = [
+            { id: 'bogo_for_1dollar', description: 'Buy One, Get One for $1 (Automatic)', apply: (cart) => {
+                const eligibleItems = cart.filter(item => {
+                    return (
+                        (item.id === 'mcchicken' && item.size === 'Regular') ||
+                        (item.id === 'cheeseburger' && item.size === 'Double') ||
+                        (item.id === 'nuggets' && item.size === '6pc') ||
+                        (item.id === 'fries' && item.size === 'S') ||
+                        item.id === 'sausage_biscuit' ||
+                        item.id === 'sausage_mcmuffin' ||
+                        item.id === 'sausage_burrito' ||
+                        item.id === 'hashbrown'
+                    );
+                });
+                
+                const numPairs = Math.floor(eligibleItems.length / 2);
+                if (numPairs === 0) return 0;
+
+                eligibleItems.sort((a, b) => b.price - a.price);
+                
+                let totalSavings = 0;
+                for (let i = 0; i < numPairs; i++) {
+                    const itemToDiscount = eligibleItems[i * 2 + 1];
+                    const savings = itemToDiscount.price - 1.00;
+                    if (savings > 0) {
+                        totalSavings += savings;
+                    }
+                }
+                return totalSavings;
+            }},
+        ];
+
+        // --- GLOBAL STATE ---
+        let cart = [];
+
+        // --- LOCAL STORAGE & PRICE MANAGEMENT ---
+        function loadPrices() {
+            const savedPrices = localStorage.getItem('mcdeal_prices');
+            if (savedPrices) {
+                const parsedPrices = JSON.parse(savedPrices);
+                menu = menu.map(item => {
+                    if (parsedPrices[item.id] !== undefined) {
+                        const newItem = { ...item };
+                        if (parsedPrices[item.id].price !== undefined) {
+                            newItem.price = parsedPrices[item.id].price;
+                        }
+                        if (parsedPrices[item.id].sizes !== undefined) {
+                            newItem.sizes = { ...item.sizes, ...parsedPrices[item.id].sizes };
+                        }
+                        return newItem;
+                    }
+                    return item;
+                });
+            }
+        }
+
+        function savePrices() {
+            const pricesToSave = {};
+            menu.forEach(item => {
+                pricesToSave[item.id] = { id: item.id };
+                if (item.sizes) {
+                    pricesToSave[item.id].sizes = item.sizes;
+                } else {
+                    pricesToSave[item.id].price = item.price;
+                }
+            });
+            localStorage.setItem('mcdeal_prices', JSON.stringify(pricesToSave));
+        }
+
+        function getMenuItem(id) {
+            return menu.find(item => item.id === id);
+        }
+
+        // --- UI INITIALIZATION & UPDATES ---
+        const menuContainer = document.getElementById('menu-items');
+        const orderSummaryContainer = document.getElementById('order-summary');
+        
+        function renderCart() {
+            orderSummaryContainer.innerHTML = '';
+
+            if (cart.length === 0) {
+                orderSummaryContainer.innerHTML = '<p class="text-gray-500 text-center italic">Your cart is empty.</p>';
+                return;
+            }
+
+            let subtotal = 0;
+            cart.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex justify-between items-center text-sm';
+                const itemName = item.size ? `${item.name} (${item.size})` : item.name;
+                const itemTotal = item.price * item.quantity;
+                subtotal += itemTotal;
+                
+                itemDiv.innerHTML = `
+                    <div>
+                        <span>${itemName}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" value="${item.quantity}" min="1" class="w-16 rounded-md border-gray-300 text-center quantity-input" data-index="${index}">
+                        <span>$${itemTotal.toFixed(2)}</span>
+                        <button class="remove-item-btn text-red-500 hover:text-red-700" data-index="${index}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+                orderSummaryContainer.appendChild(itemDiv);
+            });
+
+            const totalDiv = document.createElement('div');
+            totalDiv.className = 'flex justify-between font-bold text-lg border-t mt-2 pt-2';
+            totalDiv.innerHTML = `
+                <span>Subtotal</span>
+                <span>$${subtotal.toFixed(2)}</span>
+            `;
+            orderSummaryContainer.appendChild(totalDiv);
+        }
+        
+        function renderMenu() {
+            menuContainer.innerHTML = '';
+            const categories = [...new Set(menu.map(item => item.category))].sort();
+            
+            categories.forEach(category => {
+                const itemsInCategory = menu.filter(item => item.category === category);
+                
+                const accordionButton = document.createElement('button');
+                accordionButton.className = 'w-full text-left p-3 bg-gray-200 hover:bg-gray-300 rounded-md font-semibold flex justify-between items-center transition';
+                accordionButton.innerHTML = `<span>${category}</span> <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                
+                const accordionContent = document.createElement('div');
+                accordionContent.className = 'accordion-content pl-4';
+
+                itemsInCategory.sort((a,b) => a.name.localeCompare(b.name)).forEach((item, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between py-2';
+                    if (index < itemsInCategory.length - 1) {
+                        div.classList.add('border-b');
+                    }
+                    
+                    let itemControls = '';
+                    if (item.sizes) {
+                        const options = Object.keys(item.sizes).map(sizeKey => 
+                            `<option value="${sizeKey}">${sizeKey} - $${item.sizes[sizeKey].toFixed(2)}</option>`
+                        ).join('');
+
+                        const priceInputs = Object.keys(item.sizes).map(sizeKey => `
+                            <div class="price-input items-center space-x-2 py-1">
+                                <label class="w-24 text-right pr-2">${sizeKey}:</label>
+                                <input type="number" step="0.01" class="w-20 rounded-md border-gray-300 text-center" value="${item.sizes[sizeKey].toFixed(2)}" data-id="${item.id}" data-size="${sizeKey}">
+                            </div>
+                        `).join('');
+
+                        itemControls = `
+                            <div class="flex-grow">
+                                <span class="font-medium">${item.name}</span>
+                                <div class="text-sm text-gray-500 mt-1">
+                                    <select class="size-selector rounded-md border-gray-300 text-sm p-1">${options}</select>
+                                    <div class="price-input-group mt-1">${priceInputs}</div>
+                                </div>
+                            </div>`;
+                    } else {
+                        itemControls = `
+                            <div class="flex-grow">
+                                <span class="font-medium">${item.name}</span>
+                                <span class="text-sm text-gray-500"> - 
+                                    <span class="price-display">$${item.price.toFixed(2)}</span>
+                                    <div class="price-input items-center space-x-2">
+                                         <input type="number" step="0.01" class="w-20 rounded-md border-gray-300 text-center" value="${item.price.toFixed(2)}" data-id="${item.id}">
+                                    </div>
+                                </span>
+                            </div>`;
+                    }
+
+                    const addButton = document.createElement('button');
+                    addButton.className = 'add-item-btn bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold py-1 px-3 rounded-md text-sm ml-4 flex-shrink-0';
+                    addButton.textContent = 'Add';
+                    addButton.addEventListener('click', () => {
+                        const size = div.querySelector('.size-selector')?.value || null;
+                        addToCart(item.id, size);
+                    });
+
+                    div.innerHTML = itemControls;
+                    div.appendChild(addButton);
+                    accordionContent.appendChild(div);
+                });
+
+                menuContainer.appendChild(accordionButton);
+                menuContainer.appendChild(accordionContent);
+
+                accordionButton.addEventListener('click', () => {
+                    accordionButton.classList.toggle('bg-yellow-400');
+                    const icon = accordionButton.querySelector('svg');
+                    icon.classList.toggle('rotate-180');
+                    if (accordionContent.style.maxHeight) {
+                        accordionContent.style.maxHeight = null;
+                    } else {
+                        accordionContent.style.maxHeight = accordionContent.scrollHeight + "px";
+                    }
+                });
+            });
+        }
+
+        const dealsContainer = document.getElementById('deals');
+        selectableDeals.sort((a, b) => a.description.localeCompare(b.description)).forEach(deal => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center';
+            div.innerHTML = `
+                <input type="checkbox" id="deal-${deal.id}" data-id="${deal.id}" class="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">
+                <label for="deal-${deal.id}" class="ml-2 block text-sm text-gray-900">${deal.description}</label>
+            `;
+            dealsContainer.appendChild(div);
+        });
+
+        // --- CART LOGIC ---
+        function addToCart(itemId, size) {
+            const menuItem = getMenuItem(itemId);
+            const price = size ? menuItem.sizes[size] : menuItem.price;
+            
+            const existingItem = cart.find(item => item.id === itemId && item.size === size);
+            
+            if (existingItem) {
+                existingItem.quantity++;
+            } else {
+                cart.push({
+                    id: itemId,
+                    name: menuItem.name,
+                    size: size,
+                    price: price,
+                    quantity: 1
+                });
+            }
+            renderCart();
+        }
+
+        orderSummaryContainer.addEventListener('input', (e) => {
+            if (e.target.classList.contains('quantity-input')) {
+                const index = parseInt(e.target.dataset.index);
+                const newQuantity = parseInt(e.target.value);
+                if (newQuantity > 0) {
+                    cart[index].quantity = newQuantity;
+                } else {
+                    cart.splice(index, 1); // Remove if quantity is 0 or less
+                }
+                renderCart();
+            }
+        });
+
+        orderSummaryContainer.addEventListener('click', (e) => {
+            if (e.target.closest('.remove-item-btn')) {
+                const index = parseInt(e.target.closest('.remove-item-btn').dataset.index);
+                cart.splice(index, 1);
+                renderCart();
+            }
+        });
+
+        // --- CALCULATION LOGIC ---
+        const calculateBtn = document.getElementById('calculate-btn');
+        const resultsContainer = document.getElementById('results');
+        const editPricesBtn = document.getElementById('edit-prices-btn');
+
+        editPricesBtn.addEventListener('click', () => {
+            const isEditMode = document.body.classList.toggle('edit-mode');
+            if (isEditMode) {
+                editPricesBtn.textContent = 'Save Prices';
+                editPricesBtn.classList.replace('bg-red-600', 'bg-green-500');
+                editPricesBtn.classList.replace('hover:bg-red-700', 'hover:bg-green-600');
+            } else {
+                document.querySelectorAll('.price-input input, .price-input-group input').forEach(input => {
+                    const itemId = input.dataset.id;
+                    const sizeKey = input.dataset.size;
+                    const newPrice = parseFloat(input.value);
+                    const menuItem = getMenuItem(itemId);
+
+                    if (menuItem && !isNaN(newPrice)) {
+                        if (sizeKey) {
+                            menuItem.sizes[sizeKey] = newPrice;
+                        } else {
+                            menuItem.price = newPrice;
+                        }
+                    }
+                });
+                savePrices();
+                renderMenu();
+                editPricesBtn.textContent = 'Edit Prices';
+                editPricesBtn.classList.replace('bg-green-500', 'bg-red-600');
+                editPricesBtn.classList.replace('hover:bg-green-600', 'hover:bg-red-700');
+            }
+        });
+
+        calculateBtn.addEventListener('click', () => {
+            if (cart.length === 0) {
+                resultsContainer.innerHTML = `<p class="text-center text-red-500">Please add items to your cart first.</p>`;
+                return;
+            }
+
+            const flatCart = cart.flatMap(item => Array(item.quantity).fill({ ...item, quantity: 1 }));
+            const originalPrice = flatCart.reduce((sum, item) => sum + item.price, 0);
+
+            let automaticSavings = 0;
+            const appliedAutomaticDeals = [];
+            automaticDeals.forEach(deal => {
+                const savings = deal.apply([...flatCart]);
+                if (savings > 0) {
+                    automaticSavings += savings;
+                    appliedAutomaticDeals.push(deal);
+                }
+            });
+            const priceAfterAutoDeals = originalPrice - automaticSavings;
+
+            const selectedDealsFromUI = Array.from(document.querySelectorAll('#deals input:checked'))
+                                       .map(cb => selectableDeals.find(d => d.id === cb.dataset.id));
+            
+            let bestSelectableDeal = null;
+            let maxSelectableSavings = 0;
+            selectedDealsFromUI.forEach(deal => {
+                const savings = deal.apply([...flatCart], priceAfterAutoDeals);
+                if (savings > maxSelectableSavings) {
+                    maxSelectableSavings = savings;
+                    bestSelectableDeal = deal;
+                }
+            });
+
+            const allAppliedDeals = [...appliedAutomaticDeals];
+            if (bestSelectableDeal) {
+                allAppliedDeals.push(bestSelectableDeal);
+            }
+            
+            const totalSavings = automaticSavings + maxSelectableSavings;
+            const subtotal = originalPrice - totalSavings;
+            const taxAmount = subtotal * SALES_TAX_RATE;
+            const finalPriceWithTax = subtotal + taxAmount;
+            
+            displayResults(originalPrice, subtotal, allAppliedDeals, totalSavings, taxAmount, finalPriceWithTax);
+        });
+
+        function displayResults(originalPrice, subtotal, appliedDeals, totalSavings, taxAmount, finalPriceWithTax) {
+            let dealsHtml = '';
+            if (appliedDeals.length > 0) {
+                const dealDescriptions = appliedDeals.map(deal => `<li>${deal.description}</li>`).join('');
+                dealsHtml = `
+                <div class="p-4 bg-blue-100 border border-blue-300 rounded-lg text-center">
+                    <p class="font-semibold text-blue-800">Best Deal Combination Applied:</p>
+                    <ul class="text-blue-700 list-disc list-inside">${dealDescriptions}</ul>
+                    <p class="font-medium text-blue-800 mt-1">You saved $${totalSavings.toFixed(2)}!</p>
+                </div>
+                `;
+            } else {
+                 dealsHtml = `
+                <div class="p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-center">
+                     <p class="text-yellow-800">No applicable deals selected, or no deals provided a discount.</p>
+                </div>
+                `;
+            }
+
+            resultsContainer.innerHTML = `
+                <div class="p-4 bg-gray-50 rounded-lg space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="font-medium">Original Price:</span>
+                        <span class="font-bold">$${originalPrice.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="font-medium">Subtotal:</span>
+                        <span class="font-bold">$${subtotal.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="font-medium">Sales Tax (6%):</span>
+                        <span class="font-bold">$${taxAmount.toFixed(2)}</span>
+                    </div>
+                </div>
+                <div class="p-4 bg-green-100 border border-green-300 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium text-green-800">Final Price:</span>
+                        <span class="font-bold text-2xl text-green-800">$${finalPriceWithTax.toFixed(2)}</span>
+                    </div>
+                </div>
+                ${dealsHtml}
+            `;
+        }
+
+        // --- Initial Load ---
+        window.onload = () => {
+            loadPrices();
+            renderMenu();
+        };
+    </script>
+</body>
+</html>
