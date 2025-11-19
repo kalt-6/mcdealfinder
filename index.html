@@ -133,6 +133,10 @@
                         <span class="font-semibold line-through text-red-400" id="resultOriginal">$0.00</span>
                     </div>
                     <div class="border-t border-gray-200 pt-2 space-y-1">
+                        <div id="dealSavingsRow" class="flex justify-between text-blue-700 hidden">
+                            <span id="dealNameDisplay">+ Mobile Deal:</span>
+                            <span class="font-bold" id="dealSavingsVal">-$0.00</span>
+                        </div>
                          <div id="mealSavingsRow" class="flex justify-between text-purple-700 hidden">
                             <span>+ Meal Bundling:</span>
                             <span class="font-bold" id="mealSavingsVal">-$0.00</span>
@@ -140,10 +144,6 @@
                          <div id="autoSavingsRow" class="flex justify-between text-green-700 hidden">
                             <span>+ Auto BOGO:</span>
                             <span class="font-bold" id="autoSavingsVal">-$0.00</span>
-                        </div>
-                        <div id="dealSavingsRow" class="flex justify-between text-blue-700 hidden">
-                            <span id="dealNameDisplay">+ Mobile Deal:</span>
-                            <span class="font-bold" id="dealSavingsVal">-$0.00</span>
                         </div>
                     </div>
                 </div>
@@ -238,6 +238,7 @@
             // Drinks
             { id: 'fountain_drink', name: 'Fountain Drink', sizes: { 'S': 1.49, 'M': 1.69, 'L': 1.89 }, category: 'Drinks', img: '🥤' },
             { id: 'sweet_tea', name: 'Sweet Tea', sizes: { 'S': 1.49, 'M': 1.69, 'L': 1.89 }, category: 'Drinks', img: '🥤' },
+            
             { id: 'hot_coffee', name: 'Premium Coffee', sizes: { 'S': 1.59, 'M': 1.89, 'L': 2.19 }, category: 'Drinks', img: '☕' },
             { id: 'decaf_coffee', name: 'Decaf Coffee', sizes: { 'S': 1.59, 'M': 1.89, 'L': 2.19 }, category: 'Drinks', img: '☕' },
             { id: 'iced_coffee', name: 'Iced Coffee', sizes: { 'S': 2.29, 'M': 2.59, 'L': 2.79 }, category: 'Drinks', img: '🧋' },
@@ -461,42 +462,40 @@
             renderDeals();
         }
 
-        // --- CALCULATION ENGINE ---
-        function calculateBestDeal() {
-            if (cart.length === 0) { alert("Cart is empty."); return; }
+        // --- CALCULATION HELPER: AUTO BUNDLING ---
+        // Applies Meal Bundle logic + Auto BOGO to a CART COPY.
+        // Returns { total, savings, mealSavings, bogoSavings }
+        function calculateBaseline(cartItems) {
+            // 1. Clone items
+            let tempCart = cartItems.map(i => ({...i})); 
+            let originalTotal = tempCart.reduce((s, i) => s + i.price, 0);
+            let currentTotal = originalTotal;
             
-            // Flatten
-            let flatCart = [];
-            cart.forEach(item => {
-                for(let i=0; i<item.quantity; i++) flatCart.push({ ...item, _id: Math.random() });
-            });
-
-            const originalTotal = flatCart.reduce((sum, i) => sum + i.price, 0);
-            let currentRunningTotal = originalTotal;
-            
-            // --- 0. MEAL BUNDLE ---
+            // 2. Meal Bundling
             let mealSavings = 0;
-            let mains = flatCart.filter(i => { const m = menu.find(x => x.id === i.id); return m && m.mealPrice && !i.isMeal; });
-            let fries = flatCart.filter(i => i.id === 'fries' && i.size === 'M');
-            let drinks = flatCart.filter(i => i.id === 'fountain_drink' && i.size === 'M');
+            let mains = tempCart.filter(i => { const m = menu.find(x => x.id === i.id); return m && m.mealPrice && !i.isMeal; });
+            let fries = tempCart.filter(i => i.id === 'fries' && i.size === 'M');
+            let drinks = tempCart.filter(i => i.id === 'fountain_drink' && i.size === 'M');
 
             while(mains.length > 0 && fries.length > 0 && drinks.length > 0) {
                 const main = mains.pop(); const fry = fries.pop(); const drink = drinks.pop();
                 const menuItem = menu.find(x => x.id === main.id);
                 const bundlePrice = menuItem.mealPrice;
                 const separatePrice = main.price + fry.price + drink.price;
+
                 if (bundlePrice < separatePrice) {
-                    const savings = separatePrice - bundlePrice;
-                    mealSavings += savings;
-                    currentRunningTotal -= savings;
-                    flatCart = flatCart.filter(x => x._id !== main._id && x._id !== fry._id && x._id !== drink._id);
-                    flatCart.push({ id: main.id + "_meal", price: bundlePrice, isMeal: true, name: main.name + " Meal (Auto)" });
+                    const save = separatePrice - bundlePrice;
+                    mealSavings += save;
+                    currentTotal -= save;
+                    // Remove original components from future logic
+                    tempCart = tempCart.filter(x => x._id !== main._id && x._id !== fry._id && x._id !== drink._id);
+                    // Add virtual meal for tracking (optional, mostly just removing components helps BOGO logic not double count)
                 }
             }
 
-            // --- 1. AUTO BOGO ---
-            let autoSavings = 0;
-            const eligibleForBogo = flatCart.filter(i => {
+            // 3. Auto BOGO
+            let bogoSavings = 0;
+            const eligibleForBogo = tempCart.filter(i => {
                 if(i.isMeal) return false; 
                 if(autoBogoDeal.targets.includes(i.id)) {
                     if(i.id === 'cheeseburger' && i.size !== 'Double') return false;
@@ -512,134 +511,231 @@
                 eligibleForBogo.sort((a, b) => b.price - a.price);
                 for (let i = 0; i < numPairs; i++) {
                     const discount = eligibleForBogo[i * 2 + 1].price - autoBogoDeal.bogoPrice;
-                    if (discount > 0) { currentRunningTotal -= discount; autoSavings += discount; }
+                    if (discount > 0) { 
+                        currentTotal -= discount; 
+                        bogoSavings += discount; 
+                    }
                 }
             }
 
-            // --- 2. SELECTABLE DEALS ---
-            let bestDealName = "No Additional Deals";
-            let bestDealSavings = 0;
+            return {
+                total: currentTotal,
+                mealSavings: mealSavings,
+                bogoSavings: bogoSavings,
+                remainingItems: tempCart
+            };
+        }
+
+        // --- MAIN CALCULATION ---
+        function calculateBestDeal() {
+            if (cart.length === 0) { alert("Cart is empty."); return; }
+            
+            // Flatten Cart with unique IDs for tracking
+            let flatCart = [];
+            cart.forEach(item => {
+                for(let i=0; i<item.quantity; i++) flatCart.push({ ...item, _id: Math.random() });
+            });
+
+            const originalTotal = flatCart.reduce((sum, i) => sum + i.price, 0);
+
+            // SCENARIO 1: BASELINE (No Coupon, just Auto-Logic)
+            const baseline = calculateBaseline(flatCart);
+            
+            let bestScenario = {
+                name: "No Additional Deals",
+                total: baseline.total,
+                dealSavings: 0,
+                mealSavings: baseline.mealSavings,
+                autoSavings: baseline.bogoSavings
+            };
+
+            // SCENARIO 2: TRY EVERY COUPON FIRST
             const enabledDeals = activeDeals.filter(d => d.active);
 
             enabledDeals.forEach(deal => {
-                let savings = 0;
+                // Reset to raw cart for every deal attempt
+                let tempCart = flatCart.map(i => ({...i})); 
+                let currentTotal = originalTotal;
+                let dealSavings = 0;
                 let isValid = false;
+
+                // --- APPLY COUPON LOGIC ---
+                // Note: Coupons consume items from tempCart so they aren't bundled later
                 
-                // Percent
                 if (deal.type === 'percent') {
-                    if (currentRunningTotal >= deal.minSpend) {
-                        savings = currentRunningTotal * (deal.val/100);
+                    // Percent usually applies to total, check min spend on CURRENT items?
+                    // Simplified: Apply to total of unbundled items
+                    // Actually, standard app behavior: % off applies to total bill.
+                    // So we might need to apply Auto-Logic FIRST, then % off result?
+                    // Or % off raw total?
+                    // Let's assume % off applies to the BASELINE price (stacking logic varies)
+                    // safest bet: % off entire order subtotal (baseline total)
+                    if (baseline.total >= deal.minSpend) {
+                        dealSavings = baseline.total * (deal.val/100);
                         isValid = true;
+                        // For percent off, we use baseline struct
+                         if ((baseline.total - dealSavings) < bestScenario.total) {
+                            bestScenario = {
+                                name: deal.name,
+                                total: baseline.total - dealSavings,
+                                dealSavings: dealSavings,
+                                mealSavings: baseline.mealSavings,
+                                autoSavings: baseline.bogoSavings
+                            };
+                        }
+                        return; // Skip remainder logic for percent deal, it's special
                     }
                 }
-                // Fixed $ Off
                 else if (deal.type === 'fixed_off') {
-                    if (currentRunningTotal >= deal.minSpend) {
-                        savings = deal.val;
+                    if (baseline.total >= deal.minSpend) {
+                        dealSavings = deal.val;
                         isValid = true;
+                         if ((baseline.total - dealSavings) < bestScenario.total) {
+                            bestScenario = {
+                                name: deal.name,
+                                total: baseline.total - dealSavings,
+                                dealSavings: dealSavings,
+                                mealSavings: baseline.mealSavings,
+                                autoSavings: baseline.bogoSavings
+                            };
+                        }
+                        return;
                     }
                 }
-                // Fixed Price Item (Can be $0.00 for free)
+                // ITEM SPECIFIC DEALS (consume items)
                 else if (deal.type === 'fixed_price_item') {
                     let match = null;
                     if(Array.isArray(deal.targets)) {
-                        // Check list of targets
-                        match = flatCart.find(i => !i.isMeal && deal.targets.some(t => t.id === i.id && (!t.size || i.size === t.size)));
+                        match = tempCart.find(i => !i.isMeal && deal.targets.some(t => t.id === i.id && (!t.size || i.size === t.size)));
                     } else {
-                        // Single target
-                        match = flatCart.find(i => !i.isMeal && i.id === deal.targetId);
+                        match = tempCart.find(i => !i.isMeal && i.id === deal.targetId);
                     }
-                    
                     if (match) {
-                        savings = match.price - deal.price;
-                        isValid = savings > 0;
-                    }
-                }
-                // Percent Off Item
-                else if (deal.type === 'percent_off_item') {
-                     const match = flatCart.find(i => !i.isMeal && deal.targets.some(t => t.id === i.id && (!t.size || i.size === t.size)));
-                     if (match) {
-                         savings = match.price * (deal.val / 100);
-                         isValid = true;
-                     }
-                }
-                // Fixed Price Group
-                else if (deal.type === 'fixed_price_group') {
-                    const match = flatCart.find(i => !i.isMeal && deal.targets.includes(i.id));
-                    if (match) {
-                        savings = match.price - deal.price;
-                        isValid = savings > 0;
-                    }
-                }
-                // Free Item Category
-                else if (deal.type === 'free_item_category') {
-                    const eligibleItems = flatCart.filter(i => {
-                        const mItem = menu.find(m => m.id === i.id);
-                        return !i.isMeal && mItem && mItem.category.includes(deal.targetCat) && !deal.exclude.includes(i.id);
-                    });
-                    eligibleItems.sort((a, b) => b.price - a.price);
-                    if (eligibleItems.length > 0) {
-                        const target = eligibleItems[0];
-                        if ((currentRunningTotal - target.price) >= deal.minSpend) {
-                             savings = target.price;
-                             isValid = true;
+                        dealSavings = match.price - deal.price;
+                        if(dealSavings > 0) {
+                            isValid = true;
+                            currentTotal -= dealSavings;
+                            // Mark used / remove from tempCart so auto-logic doesn't use it
+                            tempCart = tempCart.filter(x => x._id !== match._id);
                         }
                     }
                 }
-                // Combo Fixed
+                else if (deal.type === 'percent_off_item') {
+                     const match = tempCart.find(i => !i.isMeal && deal.targets.some(t => t.id === i.id && (!t.size || i.size === t.size)));
+                     if (match) {
+                         dealSavings = match.price * (deal.val / 100);
+                         isValid = true;
+                         currentTotal -= dealSavings;
+                         tempCart = tempCart.filter(x => x._id !== match._id);
+                     }
+                }
+                else if (deal.type === 'fixed_price_group') {
+                    const match = tempCart.find(i => !i.isMeal && deal.targets.includes(i.id));
+                    if (match) {
+                        dealSavings = match.price - deal.price;
+                        isValid = dealSavings > 0;
+                         if(isValid) {
+                            currentTotal -= dealSavings;
+                            tempCart = tempCart.filter(x => x._id !== match._id);
+                         }
+                    }
+                }
                 else if (deal.type === 'combo_fixed') {
-                    const mains = flatCart.filter(i => !i.isMeal && deal.components.some(c => c.id === i.id && (!c.size || c.size === i.size)));
-                    const sides = flatCart.filter(i => !i.isMeal && deal.sides.some(s => s.id === i.id && s.size === i.size));
+                    const mains = tempCart.filter(i => !i.isMeal && deal.components.some(c => c.id === i.id && (!c.size || c.size === i.size)));
+                    const sides = tempCart.filter(i => !i.isMeal && deal.sides.some(s => s.id === i.id && s.size === i.size));
                     const drinks = deal.drinks.length > 0 
-                        ? flatCart.filter(i => !i.isMeal && deal.drinks.some(d => d.id === i.id && d.size === i.size))
-                        : []; // If drinks required check
+                        ? tempCart.filter(i => !i.isMeal && deal.drinks.some(d => d.id === i.id && d.size === i.size))
+                        : [];
                     
                     const reqSides = deal.sideCount || 1;
                     const reqDrinks = deal.drinks.length > 0 ? 1 : 0;
 
                     if(mains.length > 0 && sides.length >= reqSides && (reqDrinks === 0 || drinks.length > 0)) {
-                        // Calc bundle price
-                        const mainP = mains[0].price;
-                        let sideP = 0;
-                        for(let k=0; k<reqSides; k++) sideP += sides[k].price;
-                        const drinkP = reqDrinks > 0 ? drinks[0].price : 0;
+                        const main = mains[0];
+                        // Get N sides
+                        const usedSides = sides.slice(0, reqSides);
+                        const usedDrink = reqDrinks > 0 ? drinks[0] : null;
 
-                        const totalSep = mainP + sideP + drinkP;
-                        savings = totalSep - deal.price;
-                        isValid = savings > 0;
+                        let totalSep = main.price;
+                        usedSides.forEach(s => totalSep += s.price);
+                        if(usedDrink) totalSep += usedDrink.price;
+
+                        dealSavings = totalSep - deal.price;
+                        
+                        if (dealSavings > 0) {
+                            isValid = true;
+                            currentTotal -= dealSavings;
+                            // Remove items
+                            let idsToRemove = [main._id, ...usedSides.map(s=>s._id)];
+                            if(usedDrink) idsToRemove.push(usedDrink._id);
+                            tempCart = tempCart.filter(x => !idsToRemove.includes(x._id));
+                        }
                     }
                 }
-                // Free Item w/ Specific Item
                 else if (deal.type === 'free_item_with_item') {
-                    const buyItem = flatCart.find(i => i.id === deal.buyId && (!deal.buySize || i.size === deal.buySize));
-                    const getItem = flatCart.find(i => i.id === deal.getId && (!deal.getSize || i.size === deal.getSize));
+                    const buyItem = tempCart.find(i => i.id === deal.buyId && (!deal.buySize || i.size === deal.buySize));
+                    // Look for get item (distinct from buy item)
+                    const getItem = tempCart.find(i => i.id === deal.getId && (!deal.getSize || i.size === deal.getSize) && i._id !== buyItem?._id);
+                    
                     if (buyItem && getItem) {
-                        savings = getItem.price;
+                        dealSavings = getItem.price;
                         isValid = true;
+                        currentTotal -= dealSavings;
+                        // Remove GET item? Or just leave it but discounting? 
+                        // Usually BOGO/Free Item logic removes it from pool of other deals
+                        tempCart = tempCart.filter(x => x._id !== getItem._id);
+                        // Note: Buy Item usually remains eligible for other things? Or locks?
+                        // Simplified: leave Buy Item, remove Get Item.
                     }
                 }
-                // BOGO Category
-                else if (deal.type === 'bogo_category') {
-                    const eligible = flatCart.filter(i => {
-                        const mItem = menu.find(m => m.id === i.id);
-                        return !i.isMeal && mItem && mItem.category.includes(deal.targetCat);
-                    });
-                    if (eligible.length >= 2) {
-                         eligible.sort((a, b) => b.price - a.price);
-                         savings = eligible[1].price - deal.bogoPrice;
-                         isValid = savings > 0;
-                    }
+                // For Free Item Category/General, we need to check minSpend against what? 
+                // Typically min spend is subtotal.
+                else if (deal.type === 'free_item_category' || deal.type === 'free_item') {
+                    // This is tricky. Min spend usually must be met by OTHER items.
+                    // Let's try to find target first
+                     let target = null;
+                     if(deal.type === 'free_item') {
+                        target = tempCart.find(i => !i.isMeal && i.id === deal.targetId && (!deal.targetSize || i.size === deal.targetSize));
+                     } else {
+                        const matches = tempCart.filter(i => {
+                            const mItem = menu.find(m => m.id === i.id);
+                            return !i.isMeal && mItem && mItem.category.includes(deal.targetCat) && !deal.exclude.includes(i.id);
+                        });
+                        matches.sort((a, b) => b.price - a.price); // max value
+                        if(matches.length > 0) target = matches[0];
+                     }
+
+                     if(target) {
+                         // Check remaining total of ALL items (including those that might be bundled later)
+                         // Logic: (OriginalTotal - TargetPrice) >= MinSpend ?
+                         if ((originalTotal - target.price) >= deal.minSpend) {
+                             dealSavings = target.price;
+                             isValid = true;
+                             currentTotal -= dealSavings;
+                             tempCart = tempCart.filter(x => x._id !== target._id);
+                         }
+                     }
                 }
 
-                if (isValid && savings > bestDealSavings) {
-                    bestDealSavings = savings;
-                    bestDealName = deal.name;
+                // --- RUN AUTO LOGIC ON REMAINDER ---
+                if(isValid) {
+                    const remainderResult = calculateBaseline(tempCart);
+                    const finalTotal = currentTotal - remainderResult.mealSavings - remainderResult.bogoSavings;
+                    
+                    if(finalTotal < bestScenario.total) {
+                        bestScenario = {
+                            name: deal.name,
+                            total: finalTotal,
+                            dealSavings: dealSavings,
+                            mealSavings: remainderResult.mealSavings,
+                            autoSavings: remainderResult.bogoSavings
+                        };
+                    }
                 }
             });
 
-            const totalSavings = mealSavings + autoSavings + bestDealSavings;
-            const finalPrice = originalTotal - totalSavings;
-            showResult(originalTotal, finalPrice, totalSavings, mealSavings, autoSavings, bestDealSavings, bestDealName);
+            const totalSavings = originalTotal - bestScenario.total;
+            showResult(originalTotal, bestScenario.total, totalSavings, bestScenario.mealSavings, bestScenario.autoSavings, bestScenario.dealSavings, bestScenario.name);
         }
 
         function showResult(orig, newP, totalSave, mealSave, autoSave, dealSave, dealName) {
