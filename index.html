@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="Create your order and find the best combination of deals.">
     <title>McDeal Finder</title>
     <link rel="icon" type="image/png" href="logo.png">
@@ -27,50 +27,64 @@
             -webkit-appearance: none; 
             margin: 0; 
         }
+
+        /* Mobile Tab Active State */
+        .tab-active {
+            color: #DA291C;
+            font-weight: bold;
+        }
+        .tab-inactive {
+            color: #9CA3AF;
+        }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body class="h-screen flex flex-col overflow-hidden bg-gray-50">
 
     <!-- Header -->
-    <header class="mcd-red text-white p-4 shadow-md z-10 shrink-0">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center w-full gap-2">
+    <header class="mcd-red text-white p-3 shadow-md z-10 shrink-0">
+        <div class="max-w-7xl mx-auto flex flex-row justify-between items-center w-full gap-2">
             <div class="flex items-center gap-2">
-                <div class="text-4xl mcd-yellow"><i class="fa-brands fa-mcdonalds"></i></div>
+                <div class="text-3xl mcd-yellow"><i class="fa-brands fa-mcdonalds"></i></div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight leading-none">McDeal Finder</h1>
-                    <p class="text-xs text-white/90 font-light">Find the cheapest way to order your favorites!</p>
+                    <h1 class="text-xl font-bold tracking-tight leading-none">McDeal Finder</h1>
+                    <p class="text-[10px] text-white/90 font-light hidden sm:block">Find the cheapest way to order!</p>
                 </div>
             </div>
+            <!-- Mobile Cart Summary (Mini) -->
+            <div class="md:hidden flex items-center gap-2 bg-white/10 px-3 py-1 rounded cursor-pointer" onclick="switchTab('cart')">
+                <i class="fas fa-shopping-bag text-sm"></i>
+                <span id="mobileHeaderTotal" class="text-sm font-bold">$0.00</span>
+            </div>
             <div class="text-xs bg-white/20 px-3 py-1 rounded text-center hidden sm:block">
-                Unofficial Tool • Not affiliated with McDonald's Corp.
+                Unofficial Tool
             </div>
         </div>
     </header>
 
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col md:flex-row overflow-hidden max-w-7xl mx-auto w-full">
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden max-w-7xl mx-auto w-full relative">
         
-        <!-- Left Column: Menu Selection -->
-        <div class="flex-1 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
+        <!-- Left Column: Menu Selection (Tab: Menu) -->
+        <div id="col-menu" class="flex-1 flex flex-col border-r border-gray-200 bg-white overflow-hidden h-full md:h-auto absolute inset-0 md:relative z-0 md:z-auto md:flex">
             <!-- Categories -->
             <div class="p-2 bg-gray-50 border-b overflow-x-auto category-scroll whitespace-nowrap shrink-0" id="categoryNav"></div>
 
             <!-- Menu Grid -->
-            <div class="flex-1 overflow-y-auto p-4 bg-gray-50" id="menuContainer">
+            <div class="flex-1 overflow-y-auto p-3 bg-gray-50 pb-20 md:pb-4" id="menuContainer">
                 <div class="grid grid-cols-2 lg:grid-cols-3 gap-3" id="menuGrid"></div>
             </div>
         </div>
 
-        <!-- Middle Column: Deals -->
-        <div class="w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col overflow-hidden order-last md:order-none">
-            <div class="p-3 bg-gray-100 border-b font-bold text-gray-700 flex justify-between items-center">
+        <!-- Middle Column: Deals (Tab: Deals) -->
+        <div id="col-deals" class="w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col overflow-hidden md:order-none hidden md:flex h-full md:h-auto absolute inset-0 md:relative z-0 md:z-auto">
+            <div class="p-3 bg-gray-100 border-b font-bold text-gray-700 flex justify-between items-center shrink-0">
                 <span>Mobile Deals</span>
                 <button onclick="toggleCustomDealModal()" class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">
                     + Add Custom
                 </button>
             </div>
             
-            <div class="p-2 bg-green-50 border-b border-green-100 text-xs text-green-800 flex flex-col gap-1">
+            <div class="p-2 bg-green-50 border-b border-green-100 text-xs text-green-800 flex flex-col gap-1 shrink-0">
                 <div class="flex items-start gap-2">
                     <i class="fas fa-check-circle mt-0.5"></i>
                     <span><strong>Auto-BOGO:</strong> $1 on McChicken, Dbl Chz, 6pc, Sm Fry, Breakfast.</span>
@@ -81,15 +95,11 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-3 space-y-3 bg-white" id="dealsList"></div>
-            
-            <div class="p-3 bg-yellow-50 border-t border-yellow-200 text-xs text-yellow-800">
-                <i class="fas fa-info-circle"></i> Select one "Mobile App Deal" to combine with automatic savings.
-            </div>
+            <div class="flex-1 overflow-y-auto p-3 space-y-3 bg-white pb-20 md:pb-3" id="dealsList"></div>
         </div>
 
-        <!-- Right Column: Cart & Results -->
-        <div class="w-full md:w-80 lg:w-96 bg-gray-50 flex flex-col shadow-xl z-20 h-[40vh] md:h-auto border-t md:border-t-0 border-gray-300">
+        <!-- Right Column: Cart & Results (Tab: Cart) -->
+        <div id="col-cart" class="w-full md:w-80 lg:w-96 bg-gray-50 flex flex-col shadow-xl z-20 border-t md:border-t-0 border-gray-300 hidden md:flex h-full md:h-auto absolute inset-0 md:relative z-0 md:z-auto">
             <div class="p-4 bg-white border-b shadow-sm shrink-0">
                 <h2 class="font-bold text-lg flex items-center gap-2">
                     <i class="fas fa-receipt text-gray-400"></i> Your Order
@@ -101,7 +111,7 @@
             </div>
 
             <!-- Totals & Calculate -->
-            <div class="p-4 bg-white border-t space-y-3 shrink-0">
+            <div class="p-4 bg-white border-t space-y-3 shrink-0 pb-24 md:pb-4">
                 <div class="flex justify-between text-sm text-gray-500">
                     <span>Subtotal</span>
                     <span id="subtotalDisplay">$0.00</span>
@@ -118,11 +128,30 @@
         </div>
     </div>
 
+    <!-- Mobile Bottom Nav -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-2 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <button onclick="switchTab('menu')" class="flex flex-col items-center w-full tab-active" id="tab-menu">
+            <i class="fas fa-utensils text-lg mb-1"></i>
+            <span class="text-[10px]">Menu</span>
+        </button>
+        <button onclick="switchTab('deals')" class="flex flex-col items-center w-full tab-inactive" id="tab-deals">
+            <i class="fas fa-tag text-lg mb-1"></i>
+            <span class="text-[10px]">Deals</span>
+        </button>
+        <button onclick="switchTab('cart')" class="flex flex-col items-center w-full tab-inactive relative" id="tab-cart">
+            <div class="relative">
+                <i class="fas fa-shopping-bag text-lg mb-1"></i>
+                <span id="cartBadge" class="hidden absolute -top-1 -right-2 bg-red-600 text-white text-[9px] font-bold px-1 rounded-full min-w-[14px] text-center h-[14px] flex items-center justify-center">0</span>
+            </div>
+            <span class="text-[10px]">Cart</span>
+        </button>
+    </div>
+
     <!-- Results Modal -->
-    <div id="resultModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div id="resultModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[60] p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
             <div class="mcd-red p-4 text-center text-white">
-                <h3 class="text-xl font-bold">Savings Found!</h3>
+                <h3 class="text-xl font-bold" id="resultTitle">Savings Found!</h3>
             </div>
             <div class="p-6 text-center space-y-4">
                 
@@ -168,7 +197,7 @@
     </div>
 
     <!-- Custom Deal Modal -->
-    <div id="customDealModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div id="customDealModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[60] p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 class="text-lg font-bold mb-4">Add Custom Deal</h3>
             <div class="space-y-3">
@@ -191,6 +220,38 @@
     </div>
 
     <script>
+        // --- MOBILE TAB LOGIC ---
+        function switchTab(tabName) {
+            // Only applies on mobile via classes 'hidden' and 'flex'
+            // On desktop, we want all to stay visible (they have 'md:flex')
+            
+            const cols = ['col-menu', 'col-deals', 'col-cart'];
+            const tabs = ['tab-menu', 'tab-deals', 'tab-cart'];
+            
+            // Hide all columns on mobile (remove 'flex', add 'hidden')
+            // But keep 'md:flex' so desktop ignores this
+            cols.forEach(c => {
+                document.getElementById(c).classList.add('hidden');
+                document.getElementById(c).classList.remove('flex');
+            });
+            
+            // Show active column
+            document.getElementById('col-'+tabName).classList.remove('hidden');
+            document.getElementById('col-'+tabName).classList.add('flex');
+            
+            // Update tab styling
+            tabs.forEach(t => {
+                const el = document.getElementById(t);
+                if(t === 'tab-'+tabName) {
+                    el.classList.add('tab-active');
+                    el.classList.remove('tab-inactive');
+                } else {
+                    el.classList.remove('tab-active');
+                    el.classList.add('tab-inactive');
+                }
+            });
+        }
+
         // --- MENU DATA ---
         const menu = [
             // Breakfast
@@ -408,18 +469,31 @@
 
         function updateCartDisplay() {
             const container = document.getElementById('cartContainer');
+            let subtotal = 0;
+            
+            // Calc total first for header
+            cart.forEach(i => subtotal += i.price * i.quantity);
+            document.getElementById('mobileHeaderTotal').innerText = '$' + subtotal.toFixed(2);
+            document.getElementById('subtotalDisplay').innerText = '$' + subtotal.toFixed(2);
+            document.getElementById('totalDisplay').innerText = '$' + subtotal.toFixed(2);
+            
+            // Update Badge
+            const count = cart.reduce((s, i) => s + i.quantity, 0);
+            const badge = document.getElementById('cartBadge');
+            if(count > 0) {
+                badge.classList.remove('hidden');
+                badge.innerText = count;
+            } else {
+                badge.classList.add('hidden');
+            }
+
             if (cart.length === 0) {
                 container.innerHTML = `<div class="text-center text-gray-400 mt-10 text-sm">Your tray is empty.</div>`;
-                document.getElementById('subtotalDisplay').innerText = '$0.00';
-                document.getElementById('totalDisplay').innerText = '$0.00';
                 return;
             }
 
-            let subtotal = 0;
             let html = '';
             cart.forEach((item, index) => {
-                const itemTotal = item.price * item.quantity;
-                subtotal += itemTotal;
                 let displayName = item.size ? `${item.name} (${item.size})` : item.name;
                 if (item.isMeal) displayName = `<span class="text-purple-700 font-bold"><i class="fas fa-utensils text-xs"></i> ${displayName}</span>`;
 
@@ -438,8 +512,6 @@
                 `;
             });
             container.innerHTML = html;
-            document.getElementById('subtotalDisplay').innerText = '$' + subtotal.toFixed(2);
-            document.getElementById('totalDisplay').innerText = '$' + subtotal.toFixed(2);
         }
 
         // --- DEALS UI ---
@@ -463,15 +535,11 @@
         }
 
         // --- CALCULATION HELPER: AUTO BUNDLING ---
-        // Applies Meal Bundle logic + Auto BOGO to a CART COPY.
-        // Returns { total, savings, mealSavings, bogoSavings }
         function calculateBaseline(cartItems) {
-            // 1. Clone items
             let tempCart = cartItems.map(i => ({...i})); 
             let originalTotal = tempCart.reduce((s, i) => s + i.price, 0);
             let currentTotal = originalTotal;
             
-            // 2. Meal Bundling
             let mealSavings = 0;
             let mains = tempCart.filter(i => { const m = menu.find(x => x.id === i.id); return m && m.mealPrice && !i.isMeal; });
             let fries = tempCart.filter(i => i.id === 'fries' && i.size === 'M');
@@ -487,13 +555,10 @@
                     const save = separatePrice - bundlePrice;
                     mealSavings += save;
                     currentTotal -= save;
-                    // Remove original components from future logic
                     tempCart = tempCart.filter(x => x._id !== main._id && x._id !== fry._id && x._id !== drink._id);
-                    // Add virtual meal for tracking (optional, mostly just removing components helps BOGO logic not double count)
                 }
             }
 
-            // 3. Auto BOGO
             let bogoSavings = 0;
             const eligibleForBogo = tempCart.filter(i => {
                 if(i.isMeal) return false; 
@@ -530,15 +595,12 @@
         function calculateBestDeal() {
             if (cart.length === 0) { alert("Cart is empty."); return; }
             
-            // Flatten Cart with unique IDs for tracking
             let flatCart = [];
             cart.forEach(item => {
                 for(let i=0; i<item.quantity; i++) flatCart.push({ ...item, _id: Math.random() });
             });
 
             const originalTotal = flatCart.reduce((sum, i) => sum + i.price, 0);
-
-            // SCENARIO 1: BASELINE (No Coupon, just Auto-Logic)
             const baseline = calculateBaseline(flatCart);
             
             let bestScenario = {
@@ -549,31 +611,18 @@
                 autoSavings: baseline.bogoSavings
             };
 
-            // SCENARIO 2: TRY EVERY COUPON FIRST
             const enabledDeals = activeDeals.filter(d => d.active);
 
             enabledDeals.forEach(deal => {
-                // Reset to raw cart for every deal attempt
                 let tempCart = flatCart.map(i => ({...i})); 
                 let currentTotal = originalTotal;
                 let dealSavings = 0;
                 let isValid = false;
 
-                // --- APPLY COUPON LOGIC ---
-                // Note: Coupons consume items from tempCart so they aren't bundled later
-                
                 if (deal.type === 'percent') {
-                    // Percent usually applies to total, check min spend on CURRENT items?
-                    // Simplified: Apply to total of unbundled items
-                    // Actually, standard app behavior: % off applies to total bill.
-                    // So we might need to apply Auto-Logic FIRST, then % off result?
-                    // Or % off raw total?
-                    // Let's assume % off applies to the BASELINE price (stacking logic varies)
-                    // safest bet: % off entire order subtotal (baseline total)
                     if (baseline.total >= deal.minSpend) {
                         dealSavings = baseline.total * (deal.val/100);
                         isValid = true;
-                        // For percent off, we use baseline struct
                          if ((baseline.total - dealSavings) < bestScenario.total) {
                             bestScenario = {
                                 name: deal.name,
@@ -583,7 +632,7 @@
                                 autoSavings: baseline.bogoSavings
                             };
                         }
-                        return; // Skip remainder logic for percent deal, it's special
+                        return;
                     }
                 }
                 else if (deal.type === 'fixed_off') {
@@ -602,7 +651,6 @@
                         return;
                     }
                 }
-                // ITEM SPECIFIC DEALS (consume items)
                 else if (deal.type === 'fixed_price_item') {
                     let match = null;
                     if(Array.isArray(deal.targets)) {
@@ -615,7 +663,6 @@
                         if(dealSavings > 0) {
                             isValid = true;
                             currentTotal -= dealSavings;
-                            // Mark used / remove from tempCart so auto-logic doesn't use it
                             tempCart = tempCart.filter(x => x._id !== match._id);
                         }
                     }
@@ -652,7 +699,6 @@
 
                     if(mains.length > 0 && sides.length >= reqSides && (reqDrinks === 0 || drinks.length > 0)) {
                         const main = mains[0];
-                        // Get N sides
                         const usedSides = sides.slice(0, reqSides);
                         const usedDrink = reqDrinks > 0 ? drinks[0] : null;
 
@@ -665,7 +711,6 @@
                         if (dealSavings > 0) {
                             isValid = true;
                             currentTotal -= dealSavings;
-                            // Remove items
                             let idsToRemove = [main._id, ...usedSides.map(s=>s._id)];
                             if(usedDrink) idsToRemove.push(usedDrink._id);
                             tempCart = tempCart.filter(x => !idsToRemove.includes(x._id));
@@ -674,25 +719,15 @@
                 }
                 else if (deal.type === 'free_item_with_item') {
                     const buyItem = tempCart.find(i => i.id === deal.buyId && (!deal.buySize || i.size === deal.buySize));
-                    // Look for get item (distinct from buy item)
                     const getItem = tempCart.find(i => i.id === deal.getId && (!deal.getSize || i.size === deal.getSize) && i._id !== buyItem?._id);
-                    
                     if (buyItem && getItem) {
                         dealSavings = getItem.price;
                         isValid = true;
                         currentTotal -= dealSavings;
-                        // Remove GET item? Or just leave it but discounting? 
-                        // Usually BOGO/Free Item logic removes it from pool of other deals
                         tempCart = tempCart.filter(x => x._id !== getItem._id);
-                        // Note: Buy Item usually remains eligible for other things? Or locks?
-                        // Simplified: leave Buy Item, remove Get Item.
                     }
                 }
-                // For Free Item Category/General, we need to check minSpend against what? 
-                // Typically min spend is subtotal.
                 else if (deal.type === 'free_item_category' || deal.type === 'free_item') {
-                    // This is tricky. Min spend usually must be met by OTHER items.
-                    // Let's try to find target first
                      let target = null;
                      if(deal.type === 'free_item') {
                         target = tempCart.find(i => !i.isMeal && i.id === deal.targetId && (!deal.targetSize || i.size === deal.targetSize));
@@ -701,13 +736,11 @@
                             const mItem = menu.find(m => m.id === i.id);
                             return !i.isMeal && mItem && mItem.category.includes(deal.targetCat) && !deal.exclude.includes(i.id);
                         });
-                        matches.sort((a, b) => b.price - a.price); // max value
+                        matches.sort((a, b) => b.price - a.price); 
                         if(matches.length > 0) target = matches[0];
                      }
 
                      if(target) {
-                         // Check remaining total of ALL items (including those that might be bundled later)
-                         // Logic: (OriginalTotal - TargetPrice) >= MinSpend ?
                          if ((originalTotal - target.price) >= deal.minSpend) {
                              dealSavings = target.price;
                              isValid = true;
@@ -717,7 +750,6 @@
                      }
                 }
 
-                // --- RUN AUTO LOGIC ON REMAINDER ---
                 if(isValid) {
                     const remainderResult = calculateBaseline(tempCart);
                     const finalTotal = currentTotal - remainderResult.mealSavings - remainderResult.bogoSavings;
@@ -741,7 +773,18 @@
         function showResult(orig, newP, totalSave, mealSave, autoSave, dealSave, dealName) {
             document.getElementById('resultOriginal').innerText = '$' + orig.toFixed(2);
             document.getElementById('resultNew').innerText = '$' + newP.toFixed(2);
-            document.getElementById('resultSavings').innerText = '$' + totalSave.toFixed(2);
+            
+            const savingsEl = document.getElementById('resultSavings');
+            savingsEl.innerText = '$' + totalSave.toFixed(2);
+            
+            const titleEl = document.getElementById('resultTitle');
+            if (totalSave > 0) {
+                titleEl.innerText = "Savings Found!";
+                savingsEl.className = "text-xl font-bold text-green-600";
+            } else {
+                titleEl.innerText = "Best Price Found";
+                savingsEl.className = "text-xl font-bold text-gray-500";
+            }
             
             const mealRow = document.getElementById('mealSavingsRow');
             const autoRow = document.getElementById('autoSavingsRow');
